@@ -60,8 +60,8 @@ all: main-build
 main-build: BLDC_Motor_Controller.elf secondary-outputs
 
 # Tool invocations
-BLDC_Motor_Controller.elf: $(OBJS) $(USER_OBJS) C:\Users\hp\git\KON\BLDC_Motor_Controller\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "BLDC_Motor_Controller.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\hp\git\KON\BLDC_Motor_Controller\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BLDC_Motor_Controller.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+BLDC_Motor_Controller.elf: $(OBJS) $(USER_OBJS) D:\KON\2021\Electronica\STM\KON\BLDC_Motor_Controller\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "BLDC_Motor_Controller.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"D:\KON\2021\Electronica\STM\KON\BLDC_Motor_Controller\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BLDC_Motor_Controller.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
