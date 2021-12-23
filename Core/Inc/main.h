@@ -60,8 +60,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define CS_MAX7219_Pin GPIO_PIN_1
-#define CS_MAX7219_GPIO_Port GPIOA
+#define A_LOW_Pin GPIO_PIN_3
+#define A_LOW_GPIO_Port GPIOA
 #define HALL_A_Pin GPIO_PIN_0
 #define HALL_A_GPIO_Port GPIOB
 #define HALL_A_EXTI_IRQn EXTI0_IRQn
@@ -71,8 +71,12 @@ void Error_Handler(void);
 #define HALL_C_Pin GPIO_PIN_10
 #define HALL_C_GPIO_Port GPIOB
 #define HALL_C_EXTI_IRQn EXTI15_10_IRQn
-#define A_LOW_Pin GPIO_PIN_3
-#define A_LOW_GPIO_Port GPIOB
+#define A_HIGH_Pin GPIO_PIN_8
+#define A_HIGH_GPIO_Port GPIOA
+#define B_HIGH_Pin GPIO_PIN_9
+#define B_HIGH_GPIO_Port GPIOA
+#define C_HIGH_Pin GPIO_PIN_10
+#define C_HIGH_GPIO_Port GPIOA
 #define B_LOW_Pin GPIO_PIN_4
 #define B_LOW_GPIO_Port GPIOB
 #define C_LOW_Pin GPIO_PIN_5
@@ -89,5 +93,3 @@ void Error_Handler(void);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

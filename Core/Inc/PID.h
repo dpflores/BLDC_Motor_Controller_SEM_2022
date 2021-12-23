@@ -44,5 +44,6 @@ typedef struct {
 
 void  PIDController_Init(PIDController *pid);
 float PIDController_Update(PIDController *pid, float setpoint, float measurement);
+void  PIDController_Reset(PIDController *pid);
 
 #endif /* PID_CONTROLLER_H_ */

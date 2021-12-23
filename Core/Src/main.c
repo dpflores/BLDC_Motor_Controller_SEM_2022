@@ -23,7 +23,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "max7219.h"
 
 #include "PID.h"
 
@@ -63,8 +62,6 @@ ADC_HandleTypeDef hadc1;
 
 CAN_HandleTypeDef hcan;
 
-SPI_HandleTypeDef hspi1;
-
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
@@ -76,7 +73,6 @@ TIM_HandleTypeDef htim2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_SPI1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_CAN_Init(void);
@@ -141,6 +137,47 @@ float integral = 0; //Integral part
 
 float u = 0; //control law
 
+//CAN VARIABLES
+
+CAN_TxHeaderTypeDef TxHeader;
+CAN_RxHeaderTypeDef RxHeader;
+
+uint32_t TxMailbox;
+
+uint8_t TxData[8];
+uint8_t RxData[8];
+
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
+
+	if (RxData[0] == 96 && RxData[1] == 234 && RxData[4] == 1){
+		power = 1;
+	}
+	if (RxData[0] == 96 && RxData[1] == 234 && RxData[4] == 2){
+		power = 0;
+	}
+
+
+
+	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 16){
+		TxData[0] = 50;
+
+	}
+	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 8){
+		TxData[0] = 100;
+
+	}
+	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 32){
+		TxData[0] = 150;
+
+	}
+	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 2){
+		TxData[0] = 200;
+
+	}
+}
 
 
 
@@ -176,7 +213,6 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_ADC1_Init();
-  MX_SPI1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_CAN_Init();
@@ -184,8 +220,31 @@ int main(void)
 
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1,  GPIO_PIN_SET);
   HAL_TIM_Base_Start_IT(&htim2);
-  max7219_Init(0x05);
-  max7219_Decode_On();
+
+
+  //CAN
+  HAL_CAN_Start(&hcan);
+
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+
+  //Configurando la transmision
+
+  TxHeader.DLC = 8;  // Son 8 bytes de data
+  TxHeader.ExtId = 0;
+  TxHeader.IDE = CAN_ID_STD; //Identificador del mensaje
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.StdId = 0x103;  // Este es el ID que mandaremos al periferico
+  TxHeader.TransmitGlobalTime = DISABLE;
+
+  TxData[0] = 50;
+  TxData[1] = 50;
+  TxData[2] = 50;
+  TxData[3] = 50;
+  TxData[4] = 50;
+  TxData[5] = 50;
+  TxData[6] = 50;
+  TxData[7] = 50;
+
 
   /* USER CODE END 2 */
 
@@ -206,28 +265,29 @@ int main(void)
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, duty_cycle);
 
+  //INITIAL POSITION
 
+      //HALL A
+      if (HAL_GPIO_ReadPin(HALL_A_GPIO_Port,HALL_A_Pin)) Sensors[0] = 1;
+      else Sensors[0] = 0;
+      //HALL B
+      if (HAL_GPIO_ReadPin(HALL_B_GPIO_Port,HALL_B_Pin)) Sensors[1] = 1;
+      else Sensors[1] = 0;
+      //HALL C
+      if (HAL_GPIO_ReadPin(HALL_C_GPIO_Port,HALL_C_Pin)) Sensors[2] = 1;
+      else Sensors[2] = 0;
 
 
 
   while (1)
   {
 
+
 	  if (power == 1){
 
 		  HAL_ADC_Start_IT(&hadc1);
 
-		  //Show desired Velocity in display casted or converted to uint16_t
-
-		  if (velocity == 1){
-			  show_velocity((uint16_t)vel_rpm);
-		  }
-		  if (velocity == 0){
-			  show_velocity((uint16_t)vel_d);
-		  }
-		  if (velocity == 2){
-			  show_velocity((uint16_t)u);
-		  }
+		  //HAL_CAN_AddTxMessage(&hcan, &TxHeader, &TxData, &TxMailbox);
 
 
 		  //CONTROL
@@ -240,6 +300,7 @@ int main(void)
 		  u = pid.out;
 
 		  duty_cycle = u;
+
 
 		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_cycle);
 		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
@@ -261,22 +322,34 @@ int main(void)
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9,  GPIO_PIN_RESET);
 
-		  //Turn off the high gates
-		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
-		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
-		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
+
 
 		  //Turn off the low gates
 		  HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_RESET);
 
-		  //Turn off display
-		  max7219_Clean();
+
 
 		  //max7219_Turn_Off();
 
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1,  GPIO_PIN_SET);
+
+		  //TURN OFF PID
+
+		  PIDController_Reset(&pid);
+
+		  integral = pid.integrator;
+
+		  u = pid.out;
+
+		  duty_cycle = u;
+
+
+		  //Turn off the high gates
+		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, u);
+		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, u);
+		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, u);
 
 	  }
 
@@ -390,10 +463,10 @@ static void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN1;
-  hcan.Init.Prescaler = 16;
+  hcan.Init.Prescaler = 8;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan.Init.TimeSeg1 = CAN_BS1_1TQ;
+  hcan.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
@@ -407,45 +480,22 @@ static void MX_CAN_Init(void)
   }
   /* USER CODE BEGIN CAN_Init 2 */
 
+  CAN_FilterTypeDef canfilterconfig;
+
+  canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
+  canfilterconfig.FilterBank = 10;  // anything between 0 to SlaveStartFilterBank
+  canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0;
+  canfilterconfig.FilterIdHigh = 0x01<<5;
+  canfilterconfig.FilterIdLow = 0;
+  canfilterconfig.FilterMaskIdHigh = 0x01<<5;
+  canfilterconfig.FilterMaskIdLow = 0x0000;
+  canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
+  canfilterconfig.SlaveStartFilterBank = 0;  // 13 to 27 are assigned to slave CAN (CAN 2) OR 0 to 12 are assgned to CAN1
+
+  HAL_CAN_ConfigFilter(&hcan, &canfilterconfig);
+
   /* USER CODE END CAN_Init 2 */
-
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
 
 }
 
@@ -461,6 +511,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -469,12 +520,21 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 1;
+  htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 500;
+  htim1.Init.Period = 255;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -542,9 +602,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 400;
+  htim2.Init.Prescaler = 800 - 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 10000;
+  htim2.Init.Period = 5000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -574,10 +634,6 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
@@ -601,11 +657,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS_MAX7219_GPIO_Port, CS_MAX7219_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(A_LOW_GPIO_Port, A_LOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, A_LOW_Pin|B_LOW_Pin|C_LOW_Pin|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, B_LOW_Pin|C_LOW_Pin|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PC13 PC14 PC15 */
   GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
@@ -613,12 +669,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : CS_MAX7219_Pin */
-  GPIO_InitStruct.Pin = CS_MAX7219_Pin;
+  /*Configure GPIO pin : A_LOW_Pin */
+  GPIO_InitStruct.Pin = A_LOW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_MAX7219_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(A_LOW_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : HALL_A_Pin HALL_B_Pin HALL_C_Pin POWER_Pin */
   GPIO_InitStruct.Pin = HALL_A_Pin|HALL_B_Pin|HALL_C_Pin|POWER_Pin;
@@ -626,10 +682,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : A_LOW_Pin B_LOW_Pin C_LOW_Pin PB7
-                           PB8 PB9 */
-  GPIO_InitStruct.Pin = A_LOW_Pin|B_LOW_Pin|C_LOW_Pin|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : B_LOW_Pin C_LOW_Pin PB7 PB8
+                           PB9 */
+  GPIO_InitStruct.Pin = B_LOW_Pin|C_LOW_Pin|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -654,21 +710,6 @@ static void MX_GPIO_Init(void)
 
 //FUNCIONES
 
-void show_velocity(uint16_t vel){
-	if (vel<10){
-		max7219_PrintDigit(DIGIT_3, 0, false);
-		max7219_PrintDigit(DIGIT_2, 0, false);
-		max7219_PrintItos(DIGIT_1, vel);
-	}
-	if (10<=vel &&  vel<100){
-		max7219_PrintDigit(DIGIT_3, 0, false);
-		max7219_PrintItos(DIGIT_2, vel);
-	}
-	if ( vel>=100){
-		max7219_PrintItos(DIGIT_3,  vel);
-	}
-
-}
 
 
 void Hall_Decoder(void){
@@ -682,7 +723,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		HAL_Delay(0.001);
+		//HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 		HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_SET);
@@ -700,7 +741,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		HAL_Delay(0.001);
+		//HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
 		HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_SET);
@@ -717,7 +758,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		HAL_Delay(0.001);
+		//HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
 		HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_SET);
@@ -734,7 +775,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		HAL_Delay(0.001);
+		//HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 		HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_SET);
@@ -751,7 +792,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		HAL_Delay(0.001);
+		//HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 		HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_SET);
@@ -768,7 +809,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		HAL_Delay(0.001);
+		//HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 		HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_SET);
@@ -799,7 +840,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
   */
 
   //PI control (reference)
-  	adc_sum+= adc_sample/13.65;  // 13.65 para convertir de 12 bits a un intervalo de (0-300 rpm)
+  	adc_sum+= adc_sample/8.192;  // 13.65 para convertir de 12 bits a un intervalo de (0-500 rpm)
     counts += 1;
 
     if (counts == 1){
@@ -882,9 +923,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_6) == 1){
 			power = 1;
 
-			max7219_Init(0x05);
-			max7219_Decode_On();
-
 		}
 		else{
 			power = 0;
@@ -896,9 +934,17 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
-	vel_rpm = 2*60*steps/90;  //cada segundo se mide la cantidad de revoluciones por minuto
+	//Formula para el motor de prueba
+	//vel_rpm = 2*60*steps/90;  //cada MEDIO SEGUNDO se mide la cantidad de revoluciones por minuto
 
+	//Formula para el motor de MK III
+	vel_rpm = 2*60*steps/138;
 	steps = 0;
+
+	//Enviamos el valor de la velocidad
+	TxData[0] = vel_rpm;
+	HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+	//asdasdasd
 
 };
 
@@ -937,4 +983,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

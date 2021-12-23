@@ -1,2 +1,3 @@
 PID.c:10:6:PIDController_Init	16	static
 PID.c:23:7:PIDController_Update	40	static
+PID.c:87:6:PIDController_Reset	16	static
