@@ -152,31 +152,36 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
 
-	if (RxData[0] == 96 && RxData[1] == 234 && RxData[4] == 1){
-		power = 1;
+	if (RxData[0] == 96 && RxData[1] == 234){ // HMI Page 60000
+
+		if (RxData[4] == 1){ //HMI button 1
+			power = 1;
+		}
+		if (RxData[4] == 2){ //HMI button 2
+			power = 0;
+		}
+
+
+		if (RxData[5] == 16){ //HMI down button
+			TxData[0] = 50;
+
+		}
+		if (RxData[5] == 8){ //HMI left button
+			TxData[0] = 100;
+
+		}
+		if (RxData[5] == 32){ //HMI right button
+			TxData[0] = 150;
+
+		}
+		if (RxData[5] == 2){ //HMI up button
+			TxData[0] = 200;
+
+		}
+
 	}
-	if (RxData[0] == 96 && RxData[1] == 234 && RxData[4] == 2){
-		power = 0;
-	}
 
 
-
-	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 16){
-		TxData[0] = 50;
-
-	}
-	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 8){
-		TxData[0] = 100;
-
-	}
-	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 32){
-		TxData[0] = 150;
-
-	}
-	if (RxData[0] == 96 && RxData[1] == 234 && RxData[5] == 2){
-		TxData[0] = 200;
-
-	}
 }
 
 
@@ -236,14 +241,14 @@ int main(void)
   TxHeader.StdId = 0x103;  // Este es el ID que mandaremos al periferico
   TxHeader.TransmitGlobalTime = DISABLE;
 
-  TxData[0] = 50;
-  TxData[1] = 50;
-  TxData[2] = 50;
-  TxData[3] = 50;
-  TxData[4] = 50;
-  TxData[5] = 50;
-  TxData[6] = 50;
-  TxData[7] = 50;
+  TxData[0] = 0;
+  TxData[1] = 0;
+  TxData[2] = 0;
+  TxData[3] = 0;
+  TxData[4] = 0;
+  TxData[5] = 0;
+  TxData[6] = 0;
+  TxData[7] = 0;
 
 
   /* USER CODE END 2 */
@@ -877,14 +882,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	vel_rpm = 2*60*steps/138;
 	steps = 0;
 
+
 	//Enviamos el valor de la velocidad
-	TxData[0] = vel_rpm;
+	if (vel_rpm == 0){
+		TxData[2] = 48; //48 en decimal significa en 0 en ascii
+	}
+	else{
+		TxData[2] = 0;
+		if (vel_rpm > 255){
+			TxData[0] = 255;
+			TxData[1] = vel_rpm - 255;
+		}
+		else{
+			TxData[0] = vel_rpm;
+			TxData[1] = 0;
+		}
+	}
 
-	//comentaaar
-	TxData[0] = 20;
-
+	//Send by CAN
 	HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
-	//asdasdasd
+
 
 };
 
