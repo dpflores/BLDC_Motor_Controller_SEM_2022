@@ -331,10 +331,6 @@ int main(void)
 
 
 
-		  //max7219_Turn_Off();
-
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1,  GPIO_PIN_SET);
-
 		  //TURN OFF PID
 
 		  PIDController_Reset(&pid);
@@ -651,7 +647,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -660,14 +655,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(A_LOW_GPIO_Port, A_LOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, B_LOW_Pin|C_LOW_Pin|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : PC13 PC14 PC15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOB, B_LOW_Pin|C_LOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : A_LOW_Pin */
   GPIO_InitStruct.Pin = A_LOW_Pin;
@@ -676,16 +664,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(A_LOW_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : HALL_A_Pin HALL_B_Pin HALL_C_Pin POWER_Pin */
-  GPIO_InitStruct.Pin = HALL_A_Pin|HALL_B_Pin|HALL_C_Pin|POWER_Pin;
+  /*Configure GPIO pins : HALL_A_Pin HALL_B_Pin HALL_C_Pin */
+  GPIO_InitStruct.Pin = HALL_A_Pin|HALL_B_Pin|HALL_C_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : B_LOW_Pin C_LOW_Pin PB7 PB8
-                           PB9 */
-  GPIO_InitStruct.Pin = B_LOW_Pin|C_LOW_Pin|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9;
+  /*Configure GPIO pins : B_LOW_Pin C_LOW_Pin */
+  GPIO_InitStruct.Pin = B_LOW_Pin|C_LOW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -697,9 +683,6 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
@@ -883,53 +866,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 	steps+=1;
 	}
-
-
-	// Velocidad crucero -- 35 km/h
-	else if (GPIO_Pin == GPIO_PIN_15) {
-		if (power == 1){
-		cruise_factor = cruise_factor1;
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7,  GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9,  GPIO_PIN_SET);
-		}
-		velocity = 2;
-	}
-
-	// Velocidad crucero -- 30 km/h
-	else if (GPIO_Pin == GPIO_PIN_14) {
-		if (power == 1){
-		cruise_factor = cruise_factor2;
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7,  GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_SET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9,  GPIO_PIN_RESET);
-		}
-		velocity = 0;
-	}
-
-	// Velocidad crucero -- 25 km/h
-	else if (GPIO_Pin == GPIO_PIN_13) {
-		if (power == 1){
-		cruise_factor = cruise_factor3;
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7,  GPIO_PIN_SET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9,  GPIO_PIN_RESET);
-		}
-		velocity = 1;
-	}
-
-	// Power Button
-	else if (GPIO_Pin == GPIO_PIN_6) {
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_6) == 1){
-			power = 1;
-
-		}
-		else{
-			power = 0;
-
-		}
-	}
-
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
@@ -943,6 +879,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 	//Enviamos el valor de la velocidad
 	TxData[0] = vel_rpm;
+
+	//comentaaar
+	TxData[0] = 20;
+
 	HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
 	//asdasdasd
 

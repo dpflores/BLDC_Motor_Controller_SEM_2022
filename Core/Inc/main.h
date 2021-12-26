@@ -81,9 +81,6 @@ void Error_Handler(void);
 #define B_LOW_GPIO_Port GPIOB
 #define C_LOW_Pin GPIO_PIN_5
 #define C_LOW_GPIO_Port GPIOB
-#define POWER_Pin GPIO_PIN_6
-#define POWER_GPIO_Port GPIOB
-#define POWER_EXTI_IRQn EXTI9_5_IRQn
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
