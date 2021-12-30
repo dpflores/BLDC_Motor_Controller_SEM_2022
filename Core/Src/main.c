@@ -884,19 +884,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 
 	//Enviamos el valor de la velocidad
-	if (vel_rpm == 0){
-		TxData[2] = 48; //48 en decimal significa en 0 en ascii
+
+	if (vel_rpm > 255){
+		TxData[0] = 255;
+		TxData[1] = vel_rpm - 255;
 	}
 	else{
-		TxData[2] = 0;
-		if (vel_rpm > 255){
-			TxData[0] = 255;
-			TxData[1] = vel_rpm - 255;
-		}
-		else{
-			TxData[0] = vel_rpm;
-			TxData[1] = 0;
-		}
+		TxData[0] = vel_rpm;
+		TxData[1] = 0;
 	}
 
 	//Enviamos el estado ON OFF del sistema
