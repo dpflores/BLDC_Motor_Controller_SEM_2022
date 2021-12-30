@@ -241,10 +241,10 @@ int main(void)
   TxHeader.StdId = 0x103;  // Este es el ID que mandaremos al periferico
   TxHeader.TransmitGlobalTime = DISABLE;
 
-  TxData[0] = 0;
-  TxData[1] = 0;
-  TxData[2] = 0;
-  TxData[3] = 0;
+  TxData[0] = 0; 	//Speed component
+  TxData[1] = 0;	//Speed component
+  TxData[2] = 0;	//Zero flag
+  TxData[3] = 0;	//Power flag
   TxData[4] = 0;
   TxData[5] = 0;
   TxData[6] = 0;
@@ -898,6 +898,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 			TxData[1] = 0;
 		}
 	}
+
+	//Enviamos el estado ON OFF del sistema
+
+	TxData[3] = power;  // Sending the ON (1) or OFF (0)
 
 	//Send by CAN
 	HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
