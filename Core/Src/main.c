@@ -248,7 +248,7 @@ int main(void)
   TxData[4] = 0;
   TxData[5] = 0;
   TxData[6] = 0;
-  TxData[7] = 0;
+  TxData[7] = 255;	//General flag
 
 
   /* USER CODE END 2 */
