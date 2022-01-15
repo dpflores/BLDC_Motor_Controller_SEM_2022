@@ -64,6 +64,8 @@ void Error_Handler(void);
 #define SPEED_REF_GPIO_Port GPIOA
 #define A_LOW_Pin GPIO_PIN_3
 #define A_LOW_GPIO_Port GPIOA
+#define Test_out_Pin GPIO_PIN_4
+#define Test_out_GPIO_Port GPIOA
 #define HALL_A_Pin GPIO_PIN_0
 #define HALL_A_GPIO_Port GPIOB
 #define HALL_A_EXTI_IRQn EXTI0_IRQn
