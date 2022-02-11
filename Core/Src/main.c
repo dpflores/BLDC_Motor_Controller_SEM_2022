@@ -169,19 +169,19 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
 
 		if (RxData[5] == 16){ //HMI down button
-			TxData[0] = 50;
+			TxData[4] = 0;		//Change button color
 
 		}
 		if (RxData[5] == 8){ //HMI left button
-			TxData[0] = 100;
+			TxData[4] = 1; 		//Change button color
 
 		}
 		if (RxData[5] == 32){ //HMI right button
-			TxData[0] = 150;
+			TxData[4] = 2;		//Change button color
 
 		}
 		if (RxData[5] == 2){ //HMI up button
-			TxData[0] = 200;
+			TxData[4] = 3;		//Change button color
 
 		}
 
@@ -253,10 +253,10 @@ int main(void)
 
   TxData[0] = 0; 	//Speed component
   TxData[1] = 0;	//Speed component
-  TxData[2] = 0;	//Zero flag
-  TxData[3] = 0;	//Power flag
-  TxData[4] = 0;
-  TxData[5] = 0;
+  TxData[2] = 0;	//Speed units (0 for RPM, 1 for km/h)
+  TxData[3] = 0;	//Power flag (0 off, 1 on)
+  TxData[4] = 0;	//Cruise Speed (minimum 0 to maximum 3)
+  TxData[5] = 0;    //Emergency Alert
   TxData[6] = 0;
   TxData[7] = 255;	//General flag
 
@@ -923,6 +923,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 	//INTERRUPTION TIMER 2 (0.5 s)
 	if (htim->Instance == TIM2){
+		//SPEED MEASUREMENT
+		//Formula para el motor de prueba
+		//vel_rpm = 2*60*steps/90;  //cada 0.5 SEGUNDOS se mide la cantidad de revoluciones por minuto
+
+		//Formula para el motor de MK III
+		vel_rpm = 2*60*steps/138;
+		steps = 0;
+
 
 		//Enviamos el valor de la velocidad
 
@@ -948,13 +956,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	//INTERRUPTION TIMER 3 (0.01 s)
 	if (htim->Instance == TIM3){
 
-		//SPEED MEASUREMENT
-		//Formula para el motor de prueba
-		//vel_rpm = 100*60*steps/90;  //cada 0.01 SEGUNDOS se mide la cantidad de revoluciones por minuto
-
-		//Formula para el motor de MK III
-		vel_rpm = 100*60*steps/138;
-		steps = 0;
 
 
 		//CONTROL
