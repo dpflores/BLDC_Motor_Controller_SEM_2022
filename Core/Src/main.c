@@ -293,14 +293,6 @@ int main(void)
   CAN_FLAG_REG &= ~(1<<CS1); // Cruise speed0
 
 
-  //TEST
-  CAN_FLAG_REG |=  (1<<GF);	// General Flag 1 (necessary)
-  CAN_FLAG_REG |=  (1<<SU); // Speed RPM //CAN_FLAG_REG |=  (1<<SU); // Speed km/h
-  CAN_FLAG_REG |=  (1<<EM); // No Emergency
-  CAN_FLAG_REG |=  (1<<PW); // Initial OFF
-  CAN_FLAG_REG |=  (1<<CS0); //
-  CAN_FLAG_REG |=  (1<<CS1); // Cruise speed0
-
   TxData[0] = 0; 	//Speed component
   TxData[1] = 0;	//Speed component
   TxData[2] = 0;
