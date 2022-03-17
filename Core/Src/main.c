@@ -58,8 +58,9 @@
 #define PW 1u	// Power flag
 #define EM 2u	// Emergency flag
 #define SU 3u	// Speed unit
-#define SC0 4u	// Speed cruice 0
-#define SC1 5u	// Speed Cruice 1
+#define CS0 4u	// Cruice Speed 0
+#define CS1 5u	// Cruice Speed 1
+
 
 
 /* USER CODE END PD */
@@ -157,6 +158,8 @@ float u = 0; //control law
 
 //CAN VARIABLES
 
+uint8_t CAN_FLAG_REG;	// Register of flags for can
+
 CAN_TxHeaderTypeDef TxHeader;
 CAN_RxHeaderTypeDef RxHeader;
 
@@ -190,19 +193,27 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
 
 		if (RxData[5] == 16){ //HMI down button
-			TxData[4] = 0;		//Change button color
+			//TxData[4] = 0;		//Change button color
+			CAN_FLAG_REG &= ~(1 << CS1);
+			CAN_FLAG_REG &= ~(1 << CS0); //Cruise speed 0
 
 		}
 		if (RxData[5] == 8){ //HMI left button
-			TxData[4] = 1; 		//Change button color
+			//TxData[4] = 1; 		//Change button color
+			CAN_FLAG_REG &= ~(1 << CS1);
+			CAN_FLAG_REG |=  (1 << CS0); //Cruise speed 1
 
 		}
 		if (RxData[5] == 32){ //HMI right button
-			TxData[4] = 2;		//Change button color
+			//TxData[4] = 2;		//Change button color
+			CAN_FLAG_REG |=  (1 << CS1);
+			CAN_FLAG_REG &= ~(1 << CS0); //Cruise speed 2
 
 		}
 		if (RxData[5] == 2){ //HMI up button
-			TxData[4] = 3;		//Change button color
+			//TxData[4] = 3;		//Change button color
+			CAN_FLAG_REG |=  (1 << CS1);
+			CAN_FLAG_REG |=  (1 << CS0); //Cruise speed 3
 
 		}
 
@@ -264,6 +275,55 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
+  //Configurando la transmision
+
+  TxHeader.DLC = 8;  // Son 8 bytes de data
+  TxHeader.ExtId = 0;
+  TxHeader.IDE = CAN_ID_STD; //Identificador del mensaje
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.StdId = 0x103;  // Este es el ID que mandaremos al periferico
+  TxHeader.TransmitGlobalTime = DISABLE;
+
+  // CAN_FLAG_REG Initialization
+  CAN_FLAG_REG |=  (1<<GF);	// General Flag 1 (necessary)
+  CAN_FLAG_REG &= ~(1<<SU); // Speed RPM //CAN_FLAG_REG |=  (1<<SU); // Speed km/h
+  CAN_FLAG_REG &= ~(1<<EM); // No Emergency
+  CAN_FLAG_REG &= ~(1<<PW); // Initial OFF
+  CAN_FLAG_REG &= ~(1<<CS0); //
+  CAN_FLAG_REG &= ~(1<<CS1); // Cruise speed0
+
+
+  //TEST
+  CAN_FLAG_REG |=  (1<<GF);	// General Flag 1 (necessary)
+  CAN_FLAG_REG |=  (1<<SU); // Speed RPM //CAN_FLAG_REG |=  (1<<SU); // Speed km/h
+  CAN_FLAG_REG |=  (1<<EM); // No Emergency
+  CAN_FLAG_REG |=  (1<<PW); // Initial OFF
+  CAN_FLAG_REG |=  (1<<CS0); //
+  CAN_FLAG_REG |=  (1<<CS1); // Cruise speed0
+
+  TxData[0] = 0; 	//Speed component
+  TxData[1] = 0;	//Speed component
+  TxData[2] = 0;
+  TxData[3] = 0;
+  TxData[4] = 0;
+  TxData[5] = 0;
+  TxData[6] = 0;
+  TxData[7] = CAN_FLAG_REG;	//Flags byte  [0 0 0 0 0 0 0 1] [x x cs cs su em pw gf]
+
+  // x: not defined
+  // cs: cruice speed (0 to 3)
+  // su: speed units (0 for RPM, 1 for km/h)
+  // em: emergency ( 1 for alert)
+  // pw: Power flag (0 off, 1 on)
+  // gf: general flag (1 always)
+
+
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+
 
   //Starting timer2 (0.5 seconds) to show speed
   HAL_TIM_Base_Start_IT(&htim2);
@@ -277,36 +337,6 @@ int main(void)
   //CAN FIFO activation
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-  //Configurando la transmision
-
-  TxHeader.DLC = 8;  // Son 8 bytes de data
-  TxHeader.ExtId = 0;
-  TxHeader.IDE = CAN_ID_STD; //Identificador del mensaje
-  TxHeader.RTR = CAN_RTR_DATA;
-  TxHeader.StdId = 0x103;  // Este es el ID que mandaremos al periferico
-  TxHeader.TransmitGlobalTime = DISABLE;
-
-  TxData[0] = 0; 	//Speed component
-  TxData[1] = 0;	//Speed component
-  TxData[2] = 0;
-  TxData[3] = 0;
-  TxData[4] = 0;
-  TxData[5] = 0;
-  TxData[6] = 0;
-  TxData[7] = 255;	//Flags byte  [0 0 0 0 0 0 0 1] [x x cs cs su em pw gf]
-
-  HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
-  // x: not defined
-  // cs: cruice speed (0 to 3)
-  // su: speed units (0 for RPM, 1 for km/h)
-  // pw: Power flag (0 off, 1 on)
-  // gf: general flag (1 always)
-
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
 
 
   /* Initialize PID controller */
@@ -1030,11 +1060,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 		//Enviamos el estado ON OFF del sistema
 
-		TxData[3] = power;  // Sending the ON (1) or OFF (0)
-
-		FreeMailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
+		//CAN_FLAG_REG ^= (power ^ CAN_FLAG_REG) & (1 << PW);
+		CAN_FLAG_REG = (CAN_FLAG_REG & (~(1 << PW))) | (power << PW); // Sending the ON (1) or OFF (0)
+		//FreeMailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
 		//Send by CAN
 
+		TxData[7] = CAN_FLAG_REG;
 		HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
 
 
