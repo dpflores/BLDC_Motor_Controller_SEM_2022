@@ -62,10 +62,16 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SPEED_REF_Pin GPIO_PIN_0
 #define SPEED_REF_GPIO_Port GPIOA
-#define A_LOW_Pin GPIO_PIN_3
-#define A_LOW_GPIO_Port GPIOA
-#define Test_out_Pin GPIO_PIN_4
-#define Test_out_GPIO_Port GPIOA
+#define VOLTAGE_Pin GPIO_PIN_1
+#define VOLTAGE_GPIO_Port GPIOA
+#define CURRENT_Pin GPIO_PIN_2
+#define CURRENT_GPIO_Port GPIOA
+#define A_CURRENT_Pin GPIO_PIN_3
+#define A_CURRENT_GPIO_Port GPIOA
+#define B_CURRENT_Pin GPIO_PIN_4
+#define B_CURRENT_GPIO_Port GPIOA
+#define C_CURRENT_Pin GPIO_PIN_5
+#define C_CURRENT_GPIO_Port GPIOA
 #define HALL_A_Pin GPIO_PIN_0
 #define HALL_A_GPIO_Port GPIOB
 #define HALL_A_EXTI_IRQn EXTI0_IRQn
@@ -81,9 +87,11 @@ void Error_Handler(void);
 #define B_HIGH_GPIO_Port GPIOA
 #define C_HIGH_Pin GPIO_PIN_10
 #define C_HIGH_GPIO_Port GPIOA
-#define B_LOW_Pin GPIO_PIN_4
+#define A_LOW_Pin GPIO_PIN_4
+#define A_LOW_GPIO_Port GPIOB
+#define B_LOW_Pin GPIO_PIN_5
 #define B_LOW_GPIO_Port GPIOB
-#define C_LOW_Pin GPIO_PIN_5
+#define C_LOW_Pin GPIO_PIN_6
 #define C_LOW_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 

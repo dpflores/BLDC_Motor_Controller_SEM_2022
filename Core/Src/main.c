@@ -50,6 +50,18 @@
 #define SAMPLE_TIME_S 0.01f
 
 
+/* CAN data */
+
+//Position of the respective data flags
+
+#define GF 0u  	// General flag
+#define PW 1u	// Power flag
+#define EM 2u	// Emergency flag
+#define SU 3u	// Speed unit
+#define SC0 4u	// Speed cruice 0
+#define SC1 5u	// Speed Cruice 1
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,6 +71,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 CAN_HandleTypeDef hcan;
 
@@ -77,6 +90,7 @@ static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_CAN_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -109,6 +123,8 @@ float adc_sum = 0;
 uint16_t adc_av = 0; // adc_average
 
 float vel_d = 0; //desired velocity
+
+float temp = 0;
 
 
 float cruise_factor1 = 7.29; // factor to obtain the first cruise speed (35 km/h)
@@ -146,8 +162,13 @@ CAN_RxHeaderTypeDef RxHeader;
 
 uint32_t TxMailbox;
 
+uint32_t FreeMailbox; // Check the amount of mailboxes free
+
 uint8_t TxData[8];
 uint8_t RxData[8];
+
+// ADC ARRAY
+uint32_t adc_values[7];  // to store the adc values
 
 
 //PID
@@ -190,6 +211,18 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
 }
 
+//Temperature Sensor conversion
+
+// let's get the values from the datasheet
+#define V25  1.43
+#define Avg_Slope .0043
+#define VSENSE 3.3/4096   // 3.3 v and 12 bits so 4096
+
+float get_temp (uint32_t variable)   // function to read temp from the value
+{
+	return (((V25 - VSENSE*variable) / Avg_Slope) + 25);
+}
+
 
 
 /* USER CODE END 0 */
@@ -223,12 +256,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_ADC1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_CAN_Init();
+  MX_DMA_Init();
   MX_TIM3_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
 
   //Starting timer2 (0.5 seconds) to show speed
   HAL_TIM_Base_Start_IT(&htim2);
@@ -253,12 +288,19 @@ int main(void)
 
   TxData[0] = 0; 	//Speed component
   TxData[1] = 0;	//Speed component
-  TxData[2] = 0;	//Speed units (0 for RPM, 1 for km/h)
-  TxData[3] = 0;	//Power flag (0 off, 1 on)
-  TxData[4] = 0;	//Cruise Speed (minimum 0 to maximum 3)
-  TxData[5] = 0;    //Emergency Alert
+  TxData[2] = 0;
+  TxData[3] = 0;
+  TxData[4] = 0;
+  TxData[5] = 0;
   TxData[6] = 0;
-  TxData[7] = 255;	//General flag
+  TxData[7] = 255;	//Flags byte  [0 0 0 0 0 0 0 1] [x x cs cs su em pw gf]
+
+  HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+  // x: not defined
+  // cs: cruice speed (0 to 3)
+  // su: speed units (0 for RPM, 1 for km/h)
+  // pw: Power flag (0 off, 1 on)
+  // gf: general flag (1 always)
 
 
   /* USER CODE END 2 */
@@ -272,7 +314,7 @@ int main(void)
 
   PIDController_Init(&pid);
 
-  HAL_ADC_Start_IT(&hadc1);
+
 
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_cycle);
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
@@ -290,6 +332,9 @@ int main(void)
 	if (HAL_GPIO_ReadPin(HALL_C_GPIO_Port,HALL_C_Pin)) Sensors[2] = 1;
 	else Sensors[2] = 0;
 
+	HAL_ADC_Start_DMA(&hadc1, adc_values, 7);  // start the adc in dma mode
+	// here value is the buffer, where the adc values are going to store
+	// 3 is the number of values going to store == no. of channels we are using
 
 
   while (1)
@@ -297,13 +342,6 @@ int main(void)
 
 
 	  if (power == 1){
-
-		  HAL_ADC_Start_IT(&hadc1);
-
-		  //HAL_CAN_AddTxMessage(&hcan, &TxHeader, &TxData, &TxMailbox);
-
-
-		  HAL_GPIO_TogglePin(Test_out_GPIO_Port , Test_out_Pin);
 
 		  //HALL DECODER
 
@@ -408,12 +446,12 @@ static void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.NbrOfConversion = 7;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -422,7 +460,56 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_41CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_3;
+  sConfig.Rank = ADC_REGULAR_RANK_4;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = ADC_REGULAR_RANK_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_5;
+  sConfig.Rank = ADC_REGULAR_RANK_6;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+  sConfig.Rank = ADC_REGULAR_RANK_7;
+  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -687,6 +774,22 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -701,17 +804,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, A_LOW_Pin|Test_out_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, B_LOW_Pin|C_LOW_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : A_LOW_Pin Test_out_Pin */
-  GPIO_InitStruct.Pin = A_LOW_Pin|Test_out_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOB, A_LOW_Pin|B_LOW_Pin|C_LOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : HALL_A_Pin HALL_B_Pin HALL_C_Pin */
   GPIO_InitStruct.Pin = HALL_A_Pin|HALL_B_Pin|HALL_C_Pin;
@@ -719,8 +812,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : B_LOW_Pin C_LOW_Pin */
-  GPIO_InitStruct.Pin = B_LOW_Pin|C_LOW_Pin;
+  /*Configure GPIO pins : A_LOW_Pin B_LOW_Pin C_LOW_Pin */
+  GPIO_InitStruct.Pin = A_LOW_Pin|B_LOW_Pin|C_LOW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -852,24 +945,11 @@ void Hall_Decoder(void){
 //INTERRUPCIONES
 
 //ADC INTERRUPT
+
+/*
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 
 	adc_sample = HAL_ADC_GetValue(&hadc1);
-
-	/*
-	adc_sum+= adc_sample/16.06;  // 16.06 para convertir de 12 bits a 8 bits
-	counts += 1;
-
-	if (counts == 150){
-	  adc_av = adc_sum/counts;
-	  adc_sum = 0;
-	  counts = 0;
-
-	}
-
-	vel_d = adc_av/cruise_factor;
-	duty_cycle = adc_av;
-	*/
 
 	//PI control (reference)
 	adc_sum+= adc_sample/8.192;  // 13.65 para convertir de 12 bits a un intervalo de (0-500 rpm)
@@ -885,6 +965,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	vel_d = adc_av;
 
 }
+*/
 
 //HALL INTERRUPTIONS
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
@@ -919,13 +1000,17 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 }
 
 
+// This might not be working now since we are using DMA
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 	//INTERRUPTION TIMER 2 (0.5 s)
 	if (htim->Instance == TIM2){
+		//TEMPERATURE MEASUREMENT
+		temp = get_temp(adc_values[6]);
 		//SPEED MEASUREMENT
 		//Formula para el motor de prueba
 		//vel_rpm = 2*60*steps/90;  //cada 0.5 SEGUNDOS se mide la cantidad de revoluciones por minuto
+
 
 		//Formula para el motor de MK III
 		vel_rpm = 2*60*steps/138;
@@ -947,7 +1032,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 		TxData[3] = power;  // Sending the ON (1) or OFF (0)
 
+		FreeMailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
 		//Send by CAN
+
 		HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
 
 
@@ -956,6 +1043,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	//INTERRUPTION TIMER 3 (0.01 s)
 	if (htim->Instance == TIM3){
 
+		//SPEED MEASURE
+
+		vel_d = adc_values[0]/8.192; // para convertir de 12 bits a un intervalo de (0-500 rpm)
 
 
 		//CONTROL
