@@ -109,7 +109,7 @@ void Hall_Decoder(void); // Makes the hall encoding for commutation
 
 //VARIABLES
 
-uint8_t power = 1; // Power state
+uint8_t power = 0; // Power state
 
 int Sensors[3] = {0,0,0}; //Hall sensors
 
