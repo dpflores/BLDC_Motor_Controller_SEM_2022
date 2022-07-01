@@ -267,12 +267,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_ADC1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_CAN_Init();
-  MX_DMA_Init();
   MX_TIM3_Init();
-  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   //Configurando la transmision
@@ -826,7 +826,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, A_LOW_Pin|B_LOW_Pin|C_LOW_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, C_LOW_Pin|B_LOW_Pin|A_LOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : HALL_A_Pin HALL_B_Pin HALL_C_Pin */
   GPIO_InitStruct.Pin = HALL_A_Pin|HALL_B_Pin|HALL_C_Pin;
@@ -834,8 +834,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : A_LOW_Pin B_LOW_Pin C_LOW_Pin */
-  GPIO_InitStruct.Pin = A_LOW_Pin|B_LOW_Pin|C_LOW_Pin;
+  /*Configure GPIO pins : C_LOW_Pin B_LOW_Pin A_LOW_Pin */
+  GPIO_InitStruct.Pin = C_LOW_Pin|B_LOW_Pin|A_LOW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

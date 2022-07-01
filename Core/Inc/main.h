@@ -87,12 +87,12 @@ void Error_Handler(void);
 #define B_HIGH_GPIO_Port GPIOA
 #define C_HIGH_Pin GPIO_PIN_10
 #define C_HIGH_GPIO_Port GPIOA
-#define A_LOW_Pin GPIO_PIN_4
-#define A_LOW_GPIO_Port GPIOB
+#define C_LOW_Pin GPIO_PIN_4
+#define C_LOW_GPIO_Port GPIOB
 #define B_LOW_Pin GPIO_PIN_5
 #define B_LOW_GPIO_Port GPIOB
-#define C_LOW_Pin GPIO_PIN_6
-#define C_LOW_GPIO_Port GPIOB
+#define A_LOW_Pin GPIO_PIN_6
+#define A_LOW_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
