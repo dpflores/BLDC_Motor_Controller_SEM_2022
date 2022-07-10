@@ -111,7 +111,7 @@ void Hall_Decoder(void); // Makes the hall encoding for commutation
 
 uint8_t power = 0; // Power state
 
-int Sensors[3] = {0,0,0}; //Hall sensors
+int Sensors[3] = {0,0,0}; //Hall sensors (A, B, C)
 
 float duty_cycle = 0; //Duty cycle para el PWM
 
@@ -858,6 +858,7 @@ static void MX_GPIO_Init(void)
 //FUNCIONES
 
 
+// HALL DECODER (C, B, A)
 
 void Hall_Decoder(void){
 	if (Sensors[2] == 1 && Sensors[1] == 0 && Sensors[0] == 1) {
