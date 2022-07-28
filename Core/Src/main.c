@@ -109,7 +109,7 @@ void Hall_Decoder(void); // Makes the hall encoding for commutation
 
 //VARIABLES
 
-uint8_t power = 0; // Power state
+uint8_t power = 1; // Power state
 
 int Sensors[3] = {0,0,0}; //Hall sensors (A, B, C)
 
@@ -342,8 +342,12 @@ int main(void)
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, duty_cycle);
 
+  //Turn off the low gates
+  HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_RESET);
   //INITIAL POSITION
-
+  HAL_Delay(10);
 	//HALL A
 	if (HAL_GPIO_ReadPin(HALL_A_GPIO_Port,HALL_A_Pin)) Sensors[0] = 1;
 	else Sensors[0] = 0;
@@ -997,28 +1001,46 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	//HALL A
 	if (GPIO_Pin == GPIO_PIN_0) {
 
-	if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
-	else Sensors[0] = 0;
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
+		else Sensors[0] = 0;
 
-	steps+=1;
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
+		else Sensors[1] = 0;
+
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
+		else Sensors[2] = 0;
+
+		steps+=1;
 	}
 
 	//HALL B
 	else if (GPIO_Pin == GPIO_PIN_1) {
 
-	if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
-	else Sensors[1] = 0;
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
+		else Sensors[0] = 0;
 
-	steps+=1;
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
+		else Sensors[1] = 0;
+
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
+		else Sensors[2] = 0;
+
+		steps+=1;
 	}
 
 	//HALL C
 	else if (GPIO_Pin == GPIO_PIN_10) {
 
-	if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
-	else Sensors[2] = 0;
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
+		else Sensors[0] = 0;
 
-	steps+=1;
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
+		else Sensors[1] = 0;
+
+		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
+		else Sensors[2] = 0;
+
+		steps+=1;
 	}
 }
 
@@ -1032,11 +1054,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		temp = get_temp(adc_values[6]);
 		//SPEED MEASUREMENT
 		//Formula para el motor de prueba
-		//vel_rpm = 2*60*steps/90;  //cada 0.5 SEGUNDOS se mide la cantidad de revoluciones por minuto
+		vel_rpm = 2*60*steps/90;  //cada 0.5 SEGUNDOS se mide la cantidad de revoluciones por minuto
 
 
 		//Formula para el motor de MK III
-		vel_rpm = 2*60*steps/138;
+		//vel_rpm = 2*60*steps/138;
 		steps = 0;
 
 
@@ -1083,6 +1105,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 		duty_cycle = u;
 
+		// lazo abierto
+		duty_cycle = vel_d/2;
+
+		//Optional
+		if (duty_cycle<=25){
+			duty_cycle = 0;
+		}
+		else{
+			duty_cycle = duty_cycle;
+		}
 
 		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_cycle);
 		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
