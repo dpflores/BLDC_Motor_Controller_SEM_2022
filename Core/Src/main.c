@@ -63,6 +63,7 @@
 
 
 
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -72,7 +73,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
 
 CAN_HandleTypeDef hcan;
 
@@ -91,7 +91,6 @@ static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_CAN_Init(void);
-static void MX_DMA_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -109,7 +108,7 @@ void Hall_Decoder(void); // Makes the hall encoding for commutation
 
 //VARIABLES
 
-uint8_t power = 1; // Power state
+uint8_t power = 0; // Power state
 
 int Sensors[3] = {0,0,0}; //Hall sensors (A, B, C)
 
@@ -125,8 +124,6 @@ uint16_t adc_av = 0; // adc_average
 
 float vel_d = 0; //desired velocity
 
-float temp = 0;
-
 
 float cruise_factor1 = 7.29; // factor to obtain the first cruise speed (35 km/h)
 
@@ -141,6 +138,8 @@ uint16_t steps = 0; // Number of steps by the motor
 float vel_rpm = 0; // Number of steps by the motor
 
 float velocity = 0; // Any of the other velocities
+
+float rpm2kmh = 10.44; // rpm speed to km/h factor (se divide los rpm por esto para obtener en km/h)
 
 //CONTROL VALUES
 
@@ -160,23 +159,25 @@ float u = 0; //control law
 
 uint8_t CAN_FLAG_REG;	// Register of flags for can
 
+
 CAN_TxHeaderTypeDef TxHeader;
 CAN_RxHeaderTypeDef RxHeader;
 
 uint32_t TxMailbox;
-
 uint32_t FreeMailbox; // Check the amount of mailboxes free
+
 
 uint8_t TxData[8];
 uint8_t RxData[8];
-
-// ADC ARRAY
-uint32_t adc_values[7];  // to store the adc values
 
 
 //PID
 PIDController pid = { PID_KP, PID_KI, PID_KD, PID_TAU,
 						PID_LIM_MIN, PID_LIM_MAX, SAMPLE_TIME_S };
+
+// Motor variables
+
+uint8_t motor_off = 0;
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
@@ -218,22 +219,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 		}
 
 	}
-
-
 }
-
-//Temperature Sensor conversion
-
-// let's get the values from the datasheet
-#define V25  1.43
-#define Avg_Slope .0043
-#define VSENSE 3.3/4096   // 3.3 v and 12 bits so 4096
-
-float get_temp (uint32_t variable)   // function to read temp from the value
-{
-	return (((V25 - VSENSE*variable) / Avg_Slope) + 25);
-}
-
 
 
 /* USER CODE END 0 */
@@ -267,13 +253,24 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_ADC1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_CAN_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+  //Starting timer2 (0.5 seconds) to show speed
+  HAL_TIM_Base_Start_IT(&htim2);
+
+  //Starting timer3 (0.01 seconds) for speed control
+  HAL_TIM_Base_Start_IT(&htim3);
+
+  //CAN
+  HAL_CAN_Start(&hcan);
+
+  //CAN FIFO activation
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
   //Configurando la transmision
 
@@ -286,7 +283,8 @@ int main(void)
 
   // CAN_FLAG_REG Initialization
   CAN_FLAG_REG |=  (1<<GF);	// General Flag 1 (necessary)
-  CAN_FLAG_REG &= ~(1<<SU); // Speed RPM //CAN_FLAG_REG |=  (1<<SU); // Speed km/h
+  //CAN_FLAG_REG &= ~(1<<SU); // Speed RPM
+  CAN_FLAG_REG |=  (1<<SU); // Speed km/h
   CAN_FLAG_REG &= ~(1<<EM); // No Emergency
   CAN_FLAG_REG &= ~(1<<PW); // Initial OFF
   CAN_FLAG_REG &= ~(1<<CS0); //
@@ -302,6 +300,7 @@ int main(void)
   TxData[6] = 0;
   TxData[7] = CAN_FLAG_REG;	//Flags byte  [0 0 0 0 0 0 0 1] [x x cs cs su em pw gf]
 
+
   // x: not defined
   // cs: cruice speed (0 to 3)
   // su: speed units (0 for RPM, 1 for km/h)
@@ -310,25 +309,10 @@ int main(void)
   // gf: general flag (1 always)
 
 
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-
-  //Starting timer2 (0.5 seconds) to show speed
-  HAL_TIM_Base_Start_IT(&htim2);
-
-  //Starting timer3 (0.01 seconds) for speed control
-  HAL_TIM_Base_Start_IT(&htim3);
-
-  //CAN
-  HAL_CAN_Start(&hcan);
-
-  //CAN FIFO activation
-  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
-
 
 
   /* Initialize PID controller */
@@ -336,18 +320,14 @@ int main(void)
 
   PIDController_Init(&pid);
 
-
+  HAL_ADC_Start_IT(&hadc1);
 
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_cycle);
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, duty_cycle);
 
-  //Turn off the low gates
-  HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_RESET);
   //INITIAL POSITION
-  HAL_Delay(10);
+
 	//HALL A
 	if (HAL_GPIO_ReadPin(HALL_A_GPIO_Port,HALL_A_Pin)) Sensors[0] = 1;
 	else Sensors[0] = 0;
@@ -358,9 +338,6 @@ int main(void)
 	if (HAL_GPIO_ReadPin(HALL_C_GPIO_Port,HALL_C_Pin)) Sensors[2] = 1;
 	else Sensors[2] = 0;
 
-	HAL_ADC_Start_DMA(&hadc1, adc_values, 7);  // start the adc in dma mode
-	// here value is the buffer, where the adc values are going to store
-	// 3 is the number of values going to store == no. of channels we are using
 
 
   while (1)
@@ -368,6 +345,8 @@ int main(void)
 
 
 	  if (power == 1){
+
+		  HAL_ADC_Start_IT(&hadc1);
 
 		  //HALL DECODER
 
@@ -472,12 +451,12 @@ static void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 7;
+  hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -486,56 +465,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_1;
-  sConfig.Rank = ADC_REGULAR_RANK_2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_2;
-  sConfig.Rank = ADC_REGULAR_RANK_3;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_3;
-  sConfig.Rank = ADC_REGULAR_RANK_4;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  sConfig.Rank = ADC_REGULAR_RANK_5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_5;
-  sConfig.Rank = ADC_REGULAR_RANK_6;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
-  sConfig.Rank = ADC_REGULAR_RANK_7;
-  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_41CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -619,7 +549,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 2-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 255;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -800,22 +730,6 @@ static void MX_TIM3_Init(void)
 }
 
 /**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -830,7 +744,17 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Test_out_GPIO_Port, Test_out_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, C_LOW_Pin|B_LOW_Pin|A_LOW_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : Test_out_Pin */
+  GPIO_InitStruct.Pin = Test_out_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Test_out_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : HALL_A_Pin HALL_B_Pin HALL_C_Pin */
   GPIO_InitStruct.Pin = HALL_A_Pin|HALL_B_Pin|HALL_C_Pin;
@@ -862,9 +786,19 @@ static void MX_GPIO_Init(void)
 //FUNCIONES
 
 
-// HALL DECODER (C, B, A)
 
 void Hall_Decoder(void){
+	if (motor_off == 1){
+		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
+		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
+
+		HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_RESET);
+
+	}
+	else{
 	if (Sensors[2] == 1 && Sensors[1] == 0 && Sensors[0] == 1) {
 		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
 		HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
@@ -875,7 +809,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		//HAL_Delay(0.001);
+		HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 		HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_SET);
@@ -893,7 +827,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		//HAL_Delay(0.001);
+		HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
 		HAL_GPIO_WritePin(B_LOW_GPIO_Port , B_LOW_Pin,  GPIO_PIN_SET);
@@ -910,7 +844,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		//HAL_Delay(0.001);
+		HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
 		HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_SET);
@@ -927,7 +861,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		//HAL_Delay(0.001);
+		HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 		HAL_GPIO_WritePin(A_LOW_GPIO_Port , A_LOW_Pin,  GPIO_PIN_SET);
@@ -944,7 +878,7 @@ void Hall_Decoder(void){
 
 
 		//delay
-		//HAL_Delay(0.001);
+		HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 		HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_SET);
@@ -961,22 +895,36 @@ void Hall_Decoder(void){
 
 
 		//delay
-		//HAL_Delay(0.001);
+		HAL_Delay(0.001);
 
 		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 		HAL_GPIO_WritePin(C_LOW_GPIO_Port , C_LOW_Pin,  GPIO_PIN_SET);
 
+	}
 	}
 }
 
 //INTERRUPCIONES
 
 //ADC INTERRUPT
-
-/*
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 
 	adc_sample = HAL_ADC_GetValue(&hadc1);
+
+	/*
+	adc_sum+= adc_sample/16.06;  // 16.06 para convertir de 12 bits a 8 bits
+	counts += 1;
+
+	if (counts == 150){
+	  adc_av = adc_sum/counts;
+	  adc_sum = 0;
+	  counts = 0;
+
+	}
+
+	vel_d = adc_av/cruise_factor;
+	duty_cycle = adc_av;
+	*/
 
 	//PI control (reference)
 	adc_sum+= adc_sample/8.192;  // 13.65 para convertir de 12 bits a un intervalo de (0-500 rpm)
@@ -992,7 +940,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	vel_d = adc_av;
 
 }
-*/
 
 //HALL INTERRUPTIONS
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
@@ -1001,68 +948,47 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	//HALL A
 	if (GPIO_Pin == GPIO_PIN_0) {
 
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
-		else Sensors[0] = 0;
+	if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
+	else Sensors[0] = 0;
 
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
-		else Sensors[1] = 0;
-
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
-		else Sensors[2] = 0;
-
-		steps+=1;
+	steps+=1;
 	}
 
 	//HALL B
 	else if (GPIO_Pin == GPIO_PIN_1) {
 
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
-		else Sensors[0] = 0;
+	if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
+	else Sensors[1] = 0;
 
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
-		else Sensors[1] = 0;
-
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
-		else Sensors[2] = 0;
-
-		steps+=1;
+	steps+=1;
 	}
 
 	//HALL C
 	else if (GPIO_Pin == GPIO_PIN_10) {
 
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0)) Sensors[0] = 1;
-		else Sensors[0] = 0;
+	if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
+	else Sensors[2] = 0;
 
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1)) Sensors[1] = 1;
-		else Sensors[1] = 0;
-
-		if (HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_10)) Sensors[2] = 1;
-		else Sensors[2] = 0;
-
-		steps+=1;
+	steps+=1;
 	}
 }
 
 
-// This might not be working now since we are using DMA
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 	//INTERRUPTION TIMER 2 (0.5 s)
 	if (htim->Instance == TIM2){
-		//TEMPERATURE MEASUREMENT
-		temp = get_temp(adc_values[6]);
+
 		//SPEED MEASUREMENT
 		//Formula para el motor de prueba
-		vel_rpm = 2*60*steps/90;  //cada 0.5 SEGUNDOS se mide la cantidad de revoluciones por minuto
-
+//		vel_rpm = 2*60*steps/90;  //cada 0.5 SEGUNDOS se mide la cantidad de revoluciones por minuto
+//		steps = 0;
 
 		//Formula para el motor de MK III
-		//vel_rpm = 2*60*steps/138;
+		vel_rpm = 2*60*steps/138;
 		steps = 0;
 
-
-		//Enviamos el valor de la velocidad
+		//Enviamos el valor de la velocidad en RPM
 
 		if (vel_rpm > 255){
 			TxData[0] = 255;
@@ -1072,6 +998,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 			TxData[0] = vel_rpm;
 			TxData[1] = 0;
 		}
+
+		// SI PUSIMOS A KM POR HORA (Quitar si se pone RPM)
+		TxData[0] = vel_rpm/rpm2kmh;
+		TxData[1] = 0;
+
 
 		//Enviamos el estado ON OFF del sistema
 
@@ -1089,14 +1020,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	//INTERRUPTION TIMER 3 (0.01 s)
 	if (htim->Instance == TIM3){
 
-		//SPEED MEASURE
-
-		vel_d = adc_values[0]/8.192; // para convertir de 12 bits a un intervalo de (0-500 rpm)
 
 
 		//CONTROL
 
 		PIDController_Update(&pid, vel_d, vel_rpm);
+
+		// Protection
+		if (vel_d<=10){
+			PIDController_Reset(&pid);
+			motor_off = 1;
+		}
+		else{
+			motor_off = 0;
+		}
+
 
 
 		integral = pid.integrator;
@@ -1105,22 +1043,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 		duty_cycle = u;
 
-		// lazo abierto
+		// Lazo abierto  (borrar despues para probar el lazo cerrado)
+
 		duty_cycle = vel_d/2;
 
-		//Optional
-		if (duty_cycle<=25){
+		if (duty_cycle<=15){
 			duty_cycle = 0;
-		}
-		else{
-			duty_cycle = duty_cycle;
 		}
 
 		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_cycle);
 		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_cycle);
 		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, duty_cycle);
 
-		//HAL_GPIO_TogglePin(Test_out_GPIO_Port , Test_out_Pin);
 	}
 
 }

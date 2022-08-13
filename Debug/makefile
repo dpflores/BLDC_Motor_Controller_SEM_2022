@@ -34,34 +34,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := BLDC_Motor_Controller
+BUILD_ARTIFACT_NAME := BLDC_Motor_Controller2
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-BLDC_Motor_Controller.elf \
+BLDC_Motor_Controller2.elf \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-BLDC_Motor_Controller.list \
+BLDC_Motor_Controller2.list \
 
 OBJCOPY_BIN += \
-BLDC_Motor_Controller.bin \
+BLDC_Motor_Controller2.bin \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: BLDC_Motor_Controller.elf secondary-outputs
+main-build: BLDC_Motor_Controller2.elf secondary-outputs
 
 # Tool invocations
-BLDC_Motor_Controller.elf: $(OBJS) $(USER_OBJS) D:\KON\2021\Electronica\STM\KON\BLDC_Motor_Controller\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "BLDC_Motor_Controller.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"D:\KON\2021\Electronica\STM\KON\BLDC_Motor_Controller\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BLDC_Motor_Controller.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+BLDC_Motor_Controller2.elf: $(OBJS) $(USER_OBJS) D:\KON\2021\Electronica\STM\KON\BLDC_Motor_Controller2\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "BLDC_Motor_Controller2.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"D:\KON\2021\Electronica\STM\KON\BLDC_Motor_Controller2\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BLDC_Motor_Controller2.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -70,19 +70,19 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-BLDC_Motor_Controller.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "BLDC_Motor_Controller.list"
+BLDC_Motor_Controller2.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "BLDC_Motor_Controller2.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
-BLDC_Motor_Controller.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "BLDC_Motor_Controller.bin"
+BLDC_Motor_Controller2.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "BLDC_Motor_Controller2.bin"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) BLDC_Motor_Controller.bin BLDC_Motor_Controller.elf BLDC_Motor_Controller.list default.size.stdout
+	-$(RM) BLDC_Motor_Controller2.bin BLDC_Motor_Controller2.elf BLDC_Motor_Controller2.list default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_BIN)

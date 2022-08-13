@@ -56,7 +56,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern DMA_HandleTypeDef hdma_adc1;
+extern ADC_HandleTypeDef hadc1;
 extern CAN_HandleTypeDef hcan;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
@@ -224,24 +224,24 @@ void EXTI1_IRQHandler(void)
   /* USER CODE BEGIN EXTI1_IRQn 0 */
 
   /* USER CODE END EXTI1_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(VOLTAGE_Pin);
+  HAL_GPIO_EXTI_IRQHandler(HALL_B_Pin);
   /* USER CODE BEGIN EXTI1_IRQn 1 */
 
   /* USER CODE END EXTI1_IRQn 1 */
 }
 
 /**
-  * @brief This function handles DMA1 channel1 global interrupt.
+  * @brief This function handles ADC1 and ADC2 global interrupts.
   */
-void DMA1_Channel1_IRQHandler(void)
+void ADC1_2_IRQHandler(void)
 {
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
+  /* USER CODE BEGIN ADC1_2_IRQn 0 */
 
-  /* USER CODE END DMA1_Channel1_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_adc1);
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
+  /* USER CODE END ADC1_2_IRQn 0 */
+  HAL_ADC_IRQHandler(&hadc1);
+  /* USER CODE BEGIN ADC1_2_IRQn 1 */
 
-  /* USER CODE END DMA1_Channel1_IRQn 1 */
+  /* USER CODE END ADC1_2_IRQn 1 */
 }
 
 /**

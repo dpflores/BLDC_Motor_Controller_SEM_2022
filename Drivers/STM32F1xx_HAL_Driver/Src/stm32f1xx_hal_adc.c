@@ -1839,7 +1839,7 @@ void HAL_ADC_IRQHandler(ADC_HandleTypeDef* hadc)
   }
   
   /* ========== Check End of Conversion flag for injected group ========== */
-  if(__HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_JEOC))
+     if(__HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_JEOC))
   {
     if(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_JEOC))
     {
