@@ -4,4 +4,4 @@ Desarrollo del controlador de motor brushless DC utilizado por KON Team para la 
 
 Revisar la carpeta `documentation` para ver el desarrollo de hardware.
 
-Saludos por parte del equipo de electrónica de KON Team.
+Saludos de parte del equipo de electrónica de KON Team.
